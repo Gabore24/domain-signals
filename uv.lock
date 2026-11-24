@@ -74,6 +74,7 @@ name = "domain-signals"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "dnspython" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -89,6 +90,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2024.8.30" },
     { name = "dnspython", specifier = ">=2.9.2" },
     { name = "fastapi", specifier = ">=0.165.0" },
     { name = "httpx", specifier = ">=0.28.1" },
