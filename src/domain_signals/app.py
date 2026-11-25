@@ -1,16 +1,45 @@
 """HTTP API."""
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, HTTPException
 
-from domain_signals.collectors.blocklist import collect_blocklist
+from domain_signals.check import run_check
+from domain_signals.collectors.blocklist import DEFAULT_BLOCKLIST, collect_blocklist
 from domain_signals.collectors.dns import collect_dns
 from domain_signals.collectors.http import collect_http
 from domain_signals.collectors.tls import collect_tls
 from domain_signals.domain import InvalidDomainError, normalize_domain
 
-app = FastAPI(title="domain-signals")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Runs once at startup: downloads the blocklist now, so the first /check
+    doesn't spend its time budget on the download."""
+    try:
+        await DEFAULT_BLOCKLIST.get()
+    except httpx.HTTPError:
+        logger.warning("blocklist download failed at startup; will retry on first use")
+    yield
+
+
+app = FastAPI(title="domain-signals", lifespan=lifespan)
+
+
+@app.get("/check/{domain}")
+async def check(domain: str) -> dict[str, Any]:
+    """Asks every source at once and returns one report, even if some sources fail."""
+    try:
+        clean = normalize_domain(domain)
+    except InvalidDomainError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await run_check(clean)
 
 
 @app.get("/health")
